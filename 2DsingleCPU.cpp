@@ -32,29 +32,27 @@ void  prepare(){
     draw_circle(data,width,height,width/2,height/2,width/2,255);
 }
 void singleCPUSolver(){
-    for(int i=0;i<iterations;i++){
-        for (int i = 0;i < height;i++) {
-                for (int j = 0;j < width;j++) {
-                    //边界条件
-                    if (i == 0 || i == height - 1 || j == 0 || j == width - 1) {
-                        tmp_data [i * width + j] = data [i * width + j];
-                    }
-                    else {
-                        double delta = (K) * (data [(i - 1) * width + j] + data [(i + 1) * width + j] + data [i * width + j - 1] + data [i * width + j + 1] - 4 * data [i * width + j]);
-                        tmp_data [i * width + j] = data [i * width + j] + delta;
-                    }
+    for (int i = 0;i < height;i++) {
+            for (int j = 0;j < width;j++) {
+                //边界条件
+                if (i == 0 || i == height - 1 || j == 0 || j == width - 1) {
+                    tmp_data [i * width + j] = data [i * width + j];
+                }
+                else {
+                    double delta = (K) * (data [(i - 1) * width + j] + data [(i + 1) * width + j] + data [i * width + j - 1] + data [i * width + j + 1] - 4 * data [i * width + j]);
+                    tmp_data [i * width + j] = data [i * width + j] + delta;
                 }
             }
-            //更新新的数据
-            memcpy(data,tmp_data,sizeof(float)*width*height);
-    }
+        }
+    //更新新的数据
+    memcpy(data,tmp_data,sizeof(float)*width*height);
 }
 void finiaze(){
     free(data);
     free(tmp_data);
 }
 void prase_argv(int argc, char *argv[]){
-    if(argc!=4){
+    if(argc!=5){
         cout<<"Usage: "<<argv[0]<<" <K> <iterations> <width> <height>"<<endl;
         exit(1);
     }
@@ -68,13 +66,15 @@ void startTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
 }
 void endTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
     auto endTime = chrono::system_clock::now();
-    printf("Time: %f\n", chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count() / 1000.0);
+    printf("Time: %f ms\n", chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count()/1.0);
 }
 int main(int argc, char *argv[]) {
     prase_argv(argc, argv);
     prepare();
     startTimeCounter(startTime);
-    singleCPUSolver();
+    for(int i=0;i<iterations;i++){
+        singleCPUSolver();
+    }
     endTimeCounter(startTime);
     finiaze();
     return 0;
