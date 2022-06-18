@@ -34,6 +34,26 @@ void draw_circle(float* data,int width,int height,float x,float y,float r,float 
         }
     }
 }
+int calGridSize(int size){
+    int min =999;
+    int res =-1;
+    for(int i=1;i<=size;i++){
+        if(size%i==0){
+            if((i+size/i)<min){
+                min=(i+size/i);
+                res=i;
+            }
+        }
+    }
+    return res;
+}
+void startTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
+    startTime = chrono::system_clock::now();
+}
+float endTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
+    auto endTime = chrono::system_clock::now();
+    return chrono::duration_cast<chrono::microseconds>(endTime - startTime).count()/1000.0;
+}
 //prepare 数据准备,内存申请
 void  prepare(){
     MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -57,19 +77,7 @@ void  prepare(){
     }
     MPI_Bcast(data,width*height,MPI_FLOAT,0,MPI_COMM_WORLD);
 }
-int calGridSize(int size){
-    int min =999;
-    int res =-1;
-    for(int i=1;i<=size;i++){
-        if(size%i==0){
-            if((i+size/i)<min){
-                min=(i+size/i);
-                res=i;
-            }
-        }
-    }
-    return 0;
-}
+
 void multiCPUSolverReduce(){
     for (int i = y_start;i < y_end;i++) {
             for (int j = x_start;j < x_end;j++) {
@@ -92,7 +100,7 @@ void finiaze(){
     free(tmp_data);
 }
 void prase_argv(int argc, char *argv[]){
-    if(argc!=4){
+    if(argc!=5){
         cout<<"Usage: "<<argv[0]<<" <K> <iterations> <width> <height>"<<endl;
         exit(1);
     }
@@ -101,12 +109,7 @@ void prase_argv(int argc, char *argv[]){
     width=atoi(argv[3]);
     height=atoi(argv[4]);
 }
-void startTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
-    startTime = chrono::system_clock::now();
-}
-float endTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
-    auto endTime = chrono::system_clock::now();
-}
+
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     prase_argv(argc, argv);
@@ -117,8 +120,8 @@ int main(int argc, char *argv[]) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     if(rank==0){
-        cout<<"Time: "<<time<<endl;
-        cout<<"Data Transfer Time: "<<dataTransferTime<<endl;
+        printf("dataTransferTime:%f ms\n",dataTransferTime);
+        printf("time:%f ms\n",time);
     }
     finiaze();
     return 0;

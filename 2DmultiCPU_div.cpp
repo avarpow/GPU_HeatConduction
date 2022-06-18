@@ -26,6 +26,27 @@ int y_start;
 int y_end;
 int local_height;
 int local_width;
+
+void startTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
+    startTime = chrono::system_clock::now();
+}
+float endTimeCounter(chrono::time_point<chrono::system_clock> &startTime){
+    auto endTime = chrono::system_clock::now();
+    return chrono::duration_cast<chrono::microseconds>(endTime - startTime).count()/1000.0;
+}
+int calGridSize(int size){
+    int min =999;
+    int res =-1;
+    for(int i=1;i<=size;i++){
+        if(size%i==0){
+            if((i+size/i)<min){
+                min=(i+size/i);
+                res=i;
+            }
+        }
+    }
+    return res;
+}
 void draw_circle(float* data,int width,int height,float x,float y,float r,float val){
     for(int i=0;i<width;i++){
         for(int j=0;j<height;j++){
@@ -61,7 +82,7 @@ void BrocastInitState(float* init_data,int width,int height){
             }
         }
     }
-    MPI_Scatterv(buffer,sendcounts,NULL,MPI_FLOAT,data,local_width*local_height,MPI_FLOAT,0,MPI_COMM_WORLD);
+    // MPI_Scatterv(buffer,sendcounts,NULL,MPI_FLOAT,data,local_width*local_height,MPI_FLOAT,0,MPI_COMM_WORLD);
     free(buffer);
     free(sendcounts);
 }
@@ -101,19 +122,7 @@ void  prepare(){
     BrocastInitState(init_data,width,height);
 
 }
-int calGridSize(int size){
-    int min =999;
-    int res =-1;
-    for(int i=1;i<=size;i++){
-        if(size%i==0){
-            if((i+size/i)<min){
-                min=(i+size/i);
-                res=i;
-            }
-        }
-    }
-    return 0;
-}
+
 void HaloExchange(){
     int neighbor_left = (x-1+grid_x)%grid_x;
     int neighbor_right = (x+1)%grid_x;
@@ -148,28 +157,38 @@ void calculate(){
     for(int i=0;i<local_height;i++){
         for(int j=0;j<local_width;j++){
             float delta;
+            float up,down,left,right;
             if(i==0){
-                delta = (K) * (halo_buf[0][j] + data [(i + 1) * local_width + j] + data [i * local_width + j - 1] + data [i * local_width + j + 1] - 4 * data [i * local_width + j]);
+                up = halo_buf[0][i];
+            }else{
+                up = data[(i-1)*local_width+j];
             }
-            else if(i == local_height-1){
-                delta = (K) * (halo_buf[1][j] + data [(i + 1) * local_width + j] + data [i * local_width + j - 1] + data [i * local_width + j + 1] - 4 * data [i * local_width + j]);
-            }
-            else if(j==0){
-                delta = (K) * (halo_buf[3][j] + data [(i + 1) * local_width + j] + data [i * local_width + j - 1] + data [i * local_width + j + 1] - 4 * data [i * local_width + j]);
-            }
-            else if(j == local_width-1){
-                delta = (K) * (halo_buf[2][j] + data [(i + 1) * local_width + j] + data [i * local_width + j - 1] + data [i * local_width + j + 1] - 4 * data [i * local_width + j]);
+            if(i == local_height-1){
+                down = halo_buf[2][i];
             }
             else{
-                delta = (K) * (data [(i - 1) * local_width + j] + data [(i + 1) * local_width + j] + data [i * local_width + j - 1] + data [i * local_width + j + 1] - 4 * data [i * local_width + j]);
+                down = data[(i+1)*local_width+j];
             }
+            if(j==0){
+                left = halo_buf[3][i];
+            }else{
+                left = data[i*local_width+j-1];
+            }
+            if(j == local_width-1){
+                right = halo_buf[1][i];
+            }else{
+                right = data[i*local_width+j+1];
+            }
+            delta = (K) * (up+down+left+right - 4 * data [i * local_width + j]);
             tmp_data[i*local_width+j] = data[i*local_width+j] + delta;
         }
     }
     memcpy(data,tmp_data,sizeof(float)*local_width*local_height);
 }
 void multiCPUSolverHalo(){
+    auto time = chrono::system_clock::now();
     HaloExchange();
+    dataTransferTime += endTimeCounter(time);
     calculate();
 }
 void finiaze(){
@@ -180,11 +199,30 @@ void finiaze(){
         free(halo_buf[i]);
     }
 }
-int main() {
-    MPI_Init(NULL, NULL);
+void prase_argv(int argc, char *argv[]){
+    if(argc!=5){
+        cout<<"Usage: "<<argv[0]<<" <K> <iterations> <width> <height>"<<endl;
+        exit(1);
+    }
+    K=atof(argv[1]);
+    iterations=atoi(argv[2]);
+    width=atoi(argv[3]);
+    height=atoi(argv[4]);
+}
+int main(int argc, char *argv[]) {
+    MPI_Init(&argc, &argv);
+    prase_argv(argc, argv);
     prepare();
     MPI_Barrier(MPI_COMM_WORLD);
-    multiCPUSolverHalo();
+    startTimeCounter(startTime);
+    for(int i=0;i<iterations;i++){
+        multiCPUSolverHalo();
+    }
+    float time = endTimeCounter(startTime);
+    if(my_rank ==0){
+        printf("dataTransferTime:%f ms\n",dataTransferTime);
+        printf("time:%f ms\n",time);
+    }
     finiaze();
     MPI_Finalize();
     return 0;
